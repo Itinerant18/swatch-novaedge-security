@@ -9,6 +9,7 @@ import { Building2, MapPin, Users, Settings, Eye, TrendingUp } from 'lucide-reac
 import AddCustomerDialog from '../components/AddCustomerDialog';
 
 const CustomersPage: React.FC = () => {
+  console.log('CustomersPage component rendering');
   const [bankData, setBankData] = useState<Entity[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -37,6 +38,7 @@ const CustomersPage: React.FC = () => {
   };
 
   const handleCustomerAdded = () => {
+    console.log('handleCustomerAdded called');
     fetchCustomers();
   };
 
@@ -152,7 +154,7 @@ const CustomersPage: React.FC = () => {
           <p className="text-muted-foreground">Manage banking customers and their infrastructure</p>
         </div>
         
-        <AddCustomerDialog onCustomerAdded={handleCustomerAdded} />
+        <AddCustomerDialog onCustomerAdded={handleCustomerAdded || (() => {})} />
       </div>
 
       {/* Summary Cards */}
