@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Home, 
   BarChart3, 
@@ -21,15 +22,15 @@ interface SidebarProps {
 }
 
 const menuItems = [
-  { id: 'home', label: 'Home', icon: Home, hasSubmenu: false },
+  { id: 'home', label: 'Home', icon: Home, hasSubmenu: false, path: '/home' },
   { 
     id: 'dashboards', 
     label: 'Dashboards', 
     icon: BarChart3, 
     hasSubmenu: true,
     submenu: [
-      { id: 'dashboard-overview', label: 'Overview' },
-      { id: 'dashboard-analytics', label: 'Analytics' }
+      { id: 'dashboard-overview', label: 'Overview', path: '/dashboard-overview' },
+      { id: 'dashboard-analytics', label: 'Analytics', path: '/dashboard-analytics' }
     ]
   },
   { 
@@ -38,19 +39,19 @@ const menuItems = [
     icon: HardDrive, 
     hasSubmenu: true,
     submenu: [
-      { id: 'devices', label: 'Devices' }
+      { id: 'devices', label: 'Devices', path: '/devices' }
     ]
   },
-  { id: 'customers', label: 'Customers', icon: Building2, hasSubmenu: false },
-  { id: 'users', label: 'Users', icon: Users, hasSubmenu: false },
+  { id: 'customers', label: 'Customers', icon: Building2, hasSubmenu: false, path: '/customers' },
+  { id: 'users', label: 'Users', icon: Users, hasSubmenu: false, path: '/users' },
   { 
     id: 'advanced', 
     label: 'Advanced Features', 
     icon: Settings, 
     hasSubmenu: true,
     submenu: [
-      { id: 'ota-updates', label: 'OTA Updates' },
-      { id: 'scheduler', label: 'Scheduler' }
+      { id: 'ota-updates', label: 'OTA Updates', path: '/ota' },
+      { id: 'scheduler', label: 'Scheduler', path: '/scheduler' }
     ]
   }
 ];
@@ -61,7 +62,31 @@ const Sidebar: React.FC<SidebarProps> = ({
   expandedMenus, 
   onMenuToggle 
 }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const isExpanded = (menuId: string) => expandedMenus.includes(menuId);
+
+  const handleNavigation = (item: any) => {
+    if (item.hasSubmenu) {
+      onMenuToggle(item.id);
+    } else {
+      onItemClick(item.id);
+      if (item.path) {
+        navigate(item.path);
+      }
+    }
+  };
+
+  const handleSubmenuNavigation = (subItem: any) => {
+    onItemClick(subItem.id);
+    if (subItem.path) {
+      navigate(subItem.path);
+    }
+  };
+
+  const isActiveRoute = (path: string) => {
+    return location.pathname === path;
+  };
 
   return (
     <div className="w-64 h-screen bg-sidebar-bg border-r border-sidebar-foreground/10 flex flex-col">
@@ -83,15 +108,9 @@ const Sidebar: React.FC<SidebarProps> = ({
         {menuItems.map((item) => (
           <div key={item.id}>
             <button
-              onClick={() => {
-                if (item.hasSubmenu) {
-                  onMenuToggle(item.id);
-                } else {
-                  onItemClick(item.id);
-                }
-              }}
+              onClick={() => handleNavigation(item)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200 ${
-                activeItem === item.id 
+                (activeItem === item.id || (item.path && isActiveRoute(item.path)))
                   ? 'bg-sidebar-active text-primary-foreground' 
                   : 'text-sidebar-foreground hover:bg-sidebar-foreground/10'
               }`}
@@ -111,9 +130,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                 {item.submenu?.map((subItem) => (
                   <button
                     key={subItem.id}
-                    onClick={() => onItemClick(subItem.id)}
+                    onClick={() => handleSubmenuNavigation(subItem)}
                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-sm transition-colors duration-200 ${
-                      activeItem === subItem.id 
+                      (activeItem === subItem.id || (subItem.path && isActiveRoute(subItem.path)))
                         ? 'bg-sidebar-active/80 text-primary-foreground' 
                         : 'text-sidebar-foreground/80 hover:bg-sidebar-foreground/10'
                     }`}
