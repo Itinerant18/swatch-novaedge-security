@@ -6,35 +6,41 @@ import DataTable from '../components/DataTable';
 import { Entity } from '../types/hierarchy';
 import { supabase } from '@/integrations/supabase/client';
 import { Building2, MapPin, Users, Settings, Eye, TrendingUp } from 'lucide-react';
+import AddCustomerDialog from '../components/AddCustomerDialog';
 
 const CustomersPage: React.FC = () => {
   const [bankData, setBankData] = useState<Entity[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const fetchCustomers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('entities')
+        .select('*')
+        .eq('entity_type', 'customer')
+        .order('entity_name');
+
+      if (error) throw error;
+
+      // Type cast the data to ensure proper typing
+      setBankData((data || []).map(item => ({
+        ...item,
+        entity_type: item.entity_type as any,
+        metadata: item.metadata || {},
+        parent_id: item.parent_id || null
+      })));
+    } catch (error) {
+      console.error('Failed to fetch customers:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCustomerAdded = () => {
+    fetchCustomers();
+  };
+
   useEffect(() => {
-    const fetchCustomers = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('entities')
-          .select('*')
-          .eq('entity_type', 'customer')
-          .order('entity_name');
-
-        if (error) throw error;
-
-        // Type cast the data to ensure proper typing
-        setBankData((data || []).map(item => ({
-          ...item,
-          entity_type: item.entity_type as any,
-          metadata: item.metadata || {},
-          parent_id: item.parent_id || null
-        })));
-      } catch (error) {
-        console.error('Failed to fetch customers:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchCustomers();
   }, []);
 
@@ -146,10 +152,7 @@ const CustomersPage: React.FC = () => {
           <p className="text-muted-foreground">Manage banking customers and their infrastructure</p>
         </div>
         
-        <Button className="bg-gradient-primary hover:bg-primary-hover">
-          <Building2 className="w-4 h-4 mr-2" />
-          Add New Customer
-        </Button>
+        <AddCustomerDialog onCustomerAdded={handleCustomerAdded} />
       </div>
 
       {/* Summary Cards */}

@@ -10,6 +10,7 @@ import { Entity, EntityType, BreadcrumbItem, HierarchyConfig } from '@/types/hie
 import Breadcrumb from '@/components/Breadcrumb';
 import EntityIcon from '@/components/EntityIcon';
 import DataTable from '@/components/DataTable';
+import AddEntityDialog from '@/components/AddEntityDialog';
 
 const HierarchyPage: React.FC = () => {
   const { entityId } = useParams<{ entityId?: string }>();
@@ -418,6 +419,26 @@ const HierarchyPage: React.FC = () => {
     return 'Add Device';
   };
 
+  const handleEntityAdded = () => {
+    if (entityId) {
+      fetchEntityDetails(entityId);
+    } else {
+      fetchCustomers();
+    }
+  };
+
+  const getNextEntityTypeForAdd = (): EntityType | null => {
+    if (!currentEntity) return null;
+    
+    const nextType = getNextEntityType(currentEntity.entity_type);
+    if (nextType) {
+      return nextType;
+    }
+    
+    // If we're at the end of hierarchy, allow adding devices
+    return 'device';
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -447,10 +468,18 @@ const HierarchyPage: React.FC = () => {
           </p>
         </div>
         
-        <Button className="bg-gradient-primary hover:bg-primary-hover">
-          <Plus className="w-4 h-4 mr-2" />
-          {getAddButtonText()}
-        </Button>
+        {currentEntity && (
+          <AddEntityDialog
+            entityType={getNextEntityTypeForAdd()!}
+            parentEntity={currentEntity}
+            onEntityAdded={handleEntityAdded}
+          >
+            <Button className="bg-gradient-primary hover:bg-primary-hover">
+              <Plus className="w-4 h-4 mr-2" />
+              {getAddButtonText()}
+            </Button>
+          </AddEntityDialog>
+        )}
       </div>
 
       {/* Search Bar */}
