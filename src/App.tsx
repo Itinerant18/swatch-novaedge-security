@@ -4,13 +4,13 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { User, Session } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
 
 // Components
 import LoginPage from './components/LoginPage';
-import AppSidebar from './components/AppSidebar';
+import Sidebar from './components/Sidebar';
 import Header from './components/Header';
-import { useAuth } from './hooks/useAuth';
 
 // Pages
 import HomePage from './pages/HomePage';
@@ -24,11 +24,49 @@ import NotFound from './pages/NotFound';
 
 const queryClient = new QueryClient();
 
-const AppContent: React.FC = () => {
-  const { user, session, loading, signOut } = useAuth();
+const App: React.FC = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeItem, setActiveItem] = useState('home');
+  const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
+
+  useEffect(() => {
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
+      }
+    );
+
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleLogout = async () => {
-    await signOut();
+    await supabase.auth.signOut();
+    setActiveItem('home');
+    setExpandedMenus([]);
+  };
+
+  const handleItemClick = (item: string) => {
+    setActiveItem(item);
+  };
+
+  const handleMenuToggle = (menu: string) => {
+    setExpandedMenus(prev => 
+      prev.includes(menu) 
+        ? prev.filter(m => m !== menu)
+        : [...prev, menu]
+    );
   };
 
   if (loading) {
@@ -44,53 +82,52 @@ const AppContent: React.FC = () => {
 
   if (!session) {
     return (
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <LoginPage />
-      </TooltipProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <LoginPage />
+        </TooltipProvider>
+      </QueryClientProvider>
     );
   }
 
-  return (
-    <BrowserRouter>
-      <SidebarProvider>
-        <div className="flex min-h-screen w-full">
-          <AppSidebar />
-          
-          <div className="flex-1 flex flex-col">
-            <Header 
-              onLogout={handleLogout}
-              currentUser={user?.email ?? 'User'}
-            />
-            
-            <main className="flex-1 overflow-y-auto p-6">
-              <Routes>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/home" element={<HomePage />} />
-                <Route path="/devices" element={<DevicesPage />} />
-                <Route path="/customers" element={<CustomersPage />} />
-                <Route path="/hierarchy/:entityId?" element={<HierarchyPage />} />
-                <Route path="/users" element={<UsersPage />} />
-                <Route path="/ota" element={<OTAUpdatesPage />} />
-                <Route path="/scheduler" element={<SchedulerPage />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </main>
-          </div>
-        </div>
-      </SidebarProvider>
-    </BrowserRouter>
-  );
-};
-
-const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <AppContent />
+        <BrowserRouter>
+          <div className="flex h-screen bg-dashboard-bg">
+            <Sidebar
+              activeItem={activeItem}
+              onItemClick={handleItemClick}
+              expandedMenus={expandedMenus}
+              onMenuToggle={handleMenuToggle}
+            />
+            
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <Header 
+                onLogout={handleLogout}
+                currentUser={user?.email ?? 'User'}
+              />
+              
+              <main className="flex-1 overflow-y-auto p-6">
+                <Routes>
+                  <Route path="/" element={<HomePage />} />
+                  <Route path="/home" element={<HomePage />} />
+                  <Route path="/devices" element={<DevicesPage />} />
+                  <Route path="/customers" element={<CustomersPage />} />
+                  <Route path="/hierarchy/:entityId?" element={<HierarchyPage />} />
+                  <Route path="/users" element={<UsersPage />} />
+                  <Route path="/ota" element={<OTAUpdatesPage />} />
+                  <Route path="/scheduler" element={<SchedulerPage />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </main>
+            </div>
+          </div>
+        </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
   );
