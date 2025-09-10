@@ -1,200 +1,224 @@
 import React, { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import DataTable from '../components/DataTable';
-import { Entity } from '../types/hierarchy';
+import { Entity, EntityType, BreadcrumbItem } from '../types/hierarchy';
 import { supabase } from '@/integrations/supabase/client';
-import { Building2, MapPin, Users, Settings, Eye, TrendingUp } from 'lucide-react';
+import HierarchyTreeView from '../components/HierarchyTreeView';
+import HierarchyDetailPanel from '../components/HierarchyDetailPanel';
 import AddCustomerDialog from '../components/AddCustomerDialog';
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
+
+interface HierarchyNode extends Entity {
+  children?: HierarchyNode[];
+  childCount?: number;
+  level?: number;
+}
 
 const CustomersPage: React.FC = () => {
-  console.log('CustomersPage component rendering');
-  const [bankData, setBankData] = useState<Entity[]>([]);
+  const [hierarchyData, setHierarchyData] = useState<HierarchyNode[]>([]);
+  const [selectedNode, setSelectedNode] = useState<HierarchyNode | null>(null);
+  const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const fetchCustomers = async () => {
+  const fetchHierarchyData = async () => {
     try {
-      const { data, error } = await supabase
+      setLoading(true);
+      
+      // Fetch all entities
+      const { data: entities, error } = await supabase
         .from('entities')
         .select('*')
-        .eq('entity_type', 'customer')
         .order('entity_name');
 
       if (error) throw error;
 
-      // Type cast the data to ensure proper typing
-      setBankData((data || []).map(item => ({
+      // Build hierarchy tree
+      const typedEntities = (entities || []).map(item => ({
         ...item,
-        entity_type: item.entity_type as any,
+        entity_type: item.entity_type as EntityType,
         metadata: item.metadata || {},
         parent_id: item.parent_id || null
-      })));
+      }));
+      const hierarchy = buildHierarchyTree(typedEntities);
+      setHierarchyData(hierarchy);
+      
+      // Auto-select first customer if none selected
+      if (!selectedNode && hierarchy.length > 0) {
+        handleNodeSelect(hierarchy[0]);
+      }
     } catch (error) {
-      console.error('Failed to fetch customers:', error);
+      console.error('Failed to fetch hierarchy data:', error);
     } finally {
       setLoading(false);
     }
   };
 
+  const buildHierarchyTree = (entities: Entity[]): HierarchyNode[] => {
+    const entityMap = new Map<string, HierarchyNode>();
+    const rootEntities: HierarchyNode[] = [];
+
+    // Convert entities to nodes and map them
+    entities.forEach(entity => {
+      const node: HierarchyNode = {
+        ...entity,
+        children: [],
+        childCount: 0,
+        level: 0
+      };
+      entityMap.set(entity.id, node);
+    });
+
+    // Build parent-child relationships
+    entities.forEach(entity => {
+      const node = entityMap.get(entity.id);
+      if (!node) return;
+
+      if (entity.parent_id) {
+        const parent = entityMap.get(entity.parent_id);
+        if (parent) {
+          parent.children = parent.children || [];
+          parent.children.push(node);
+          parent.childCount = parent.children.length;
+          node.level = (parent.level || 0) + 1;
+        }
+      } else {
+        rootEntities.push(node);
+      }
+    });
+
+    // Sort children by name
+    const sortNodes = (nodes: HierarchyNode[]) => {
+      nodes.sort((a, b) => a.entity_name.localeCompare(b.entity_name));
+      nodes.forEach(node => {
+        if (node.children) {
+          sortNodes(node.children);
+        }
+      });
+    };
+
+    sortNodes(rootEntities);
+    return rootEntities;
+  };
+
+  const handleNodeSelect = (node: HierarchyNode) => {
+    setSelectedNode(node);
+    setBreadcrumbs(buildBreadcrumbs(node));
+  };
+
+  const buildBreadcrumbs = (node: HierarchyNode): BreadcrumbItem[] => {
+    const breadcrumbs: BreadcrumbItem[] = [];
+    let current: HierarchyNode | null = node;
+    
+    // Find path to root
+    const path: HierarchyNode[] = [current];
+    while (current?.parent_id) {
+      const parent = findNodeById(hierarchyData, current.parent_id);
+      if (parent) {
+        path.unshift(parent);
+        current = parent;
+      } else {
+        break;
+      }
+    }
+    
+    // Build breadcrumb items
+    path.forEach((pathNode, index) => {
+      breadcrumbs.push({
+        id: pathNode.id,
+        name: pathNode.entity_name,
+        type: pathNode.entity_type,
+        url: `/customers/${pathNode.id}`
+      });
+    });
+    
+    return breadcrumbs;
+  };
+
+  const findNodeById = (nodes: HierarchyNode[], id: string): HierarchyNode | null => {
+    for (const node of nodes) {
+      if (node.id === id) return node;
+      if (node.children) {
+        const found = findNodeById(node.children, id);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  const handleNodeAction = (action: 'add' | 'edit' | 'delete', node: HierarchyNode) => {
+    console.log(`Action ${action} on node:`, node.entity_name);
+    // Implement actions: open dialogs, perform operations
+    switch (action) {
+      case 'add':
+        // Open add entity dialog
+        break;
+      case 'edit':
+        // Open edit entity dialog
+        break;
+      case 'delete':
+        // Show confirmation and delete
+        break;
+    }
+  };
+
   const handleCustomerAdded = () => {
-    console.log('handleCustomerAdded called');
-    fetchCustomers();
+    fetchHierarchyData();
   };
 
   useEffect(() => {
-    fetchCustomers();
+    fetchHierarchyData();
   }, []);
-
-  // Simple display for now - will be enhanced with actual hierarchy calculations
-  const customerStats = bankData.map(customer => ({
-    ...customer,
-    totalBranches: 0, // Will be calculated from hierarchy
-    totalDevices: 0,  // Will be calculated from hierarchy
-    onlineDevices: 0, // Will be calculated from hierarchy
-    uptime: 95 // Placeholder
-  }));
-
-  const columns = [{
-    key: 'entity_name',
-    label: 'Customer Name',
-    sortable: true,
-    render: (value: string, row: any) => (
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-gradient-primary rounded-lg flex items-center justify-center">
-          <Building2 className="w-5 h-5 text-primary-foreground" />
-        </div>
-        <div>
-          <div className="font-medium text-foreground">{value}</div>
-          <div className="text-xs text-muted-foreground">{row.metadata?.type || 'Bank'}</div>
-        </div>
-      </div>
-    )
-  }, {
-    key: 'totalBranches',
-    label: 'Branches',
-    sortable: true,
-    render: (value: number) => (
-      <div className="text-center">
-        <div className="font-medium text-foreground">{value}</div>
-        <div className="text-xs text-muted-foreground">Active</div>
-      </div>
-    )
-  }, {
-    key: 'totalDevices',
-    label: 'Total Devices',
-    sortable: true,
-    render: (value: number) => (
-      <div className="text-center">
-        <div className="font-medium text-foreground">{value}</div>
-        <div className="text-xs text-muted-foreground">Connected</div>
-      </div>
-    )
-  }, {
-    key: 'uptime',
-    label: 'System Uptime',
-    sortable: true,
-    render: (value: number) => (
-      <div className="flex items-center gap-2">
-        <Badge variant="outline" className={`text-xs ${value >= 95 ? 'bg-success/10 text-success border-success/20' : value >= 85 ? 'bg-warning/10 text-warning border-warning/20' : 'bg-destructive/10 text-destructive border-destructive/20'}`}>
-          {value}%
-        </Badge>
-        {value >= 95 && <TrendingUp className="w-4 h-4 text-success" />}
-      </div>
-    )
-  }, {
-    key: 'metadata.country',
-    label: 'Location',
-    render: (_, row: any) => (
-      <div className="flex items-center gap-1">
-        <MapPin className="w-4 h-4 text-muted-foreground" />
-        <span className="text-sm text-foreground">
-          {row.metadata?.city ? `${row.metadata.city}, ${row.metadata?.country || 'India'}` : 'India'}
-        </span>
-      </div>
-    )
-  }, {
-    key: 'actions',
-    label: 'Actions',
-    render: (_: any, row: any) => (
-      <div className="flex items-center gap-2">
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={() => window.location.href = `/hierarchy/${row.id}`}
-        >
-          <Eye className="w-4 h-4 mr-1" />
-          View Hierarchy
-        </Button>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={() => console.log('Manage:', row.entity_name)}
-        >
-          <Settings className="w-4 h-4" />
-        </Button>
-      </div>
-    )
-  }];
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="h-screen flex flex-col">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between p-6 border-b border-border">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Customer Management</h1>
-          <p className="text-muted-foreground">Manage banking customers and their infrastructure</p>
+          <h1 className="text-3xl font-bold text-foreground">Customer Hierarchy Explorer</h1>
+          <p className="text-muted-foreground">Navigate through dynamic customer hierarchies and manage entities</p>
         </div>
         
-        <AddCustomerDialog onCustomerAdded={handleCustomerAdded || (() => {})} />
+        <AddCustomerDialog onCustomerAdded={handleCustomerAdded} />
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 my-0">
-        <Card className="shadow-card border-0 bg-gradient-card">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Building2 className="w-4 h-4" />
-              Total Customers
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-foreground">{bankData.length}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-card border-0 bg-gradient-card">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <MapPin className="w-4 h-4" />
-              Total Branches
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-foreground">
-              {customerStats.reduce((sum, customer) => sum + customer.totalBranches, 0)}
+      {/* Main Content - Resizable Panels */}
+      <div className="flex-1 overflow-hidden">
+        <ResizablePanelGroup direction="horizontal" className="h-full">
+          {/* Left Panel - Tree View */}
+          <ResizablePanel defaultSize={30} minSize={25} maxSize={50}>
+            <div className="h-full border-r border-border bg-muted/30">
+              <HierarchyTreeView
+                hierarchyData={hierarchyData}
+                selectedNode={selectedNode}
+                onNodeSelect={handleNodeSelect}
+                onNodeAction={handleNodeAction}
+                searchTerm={searchTerm}
+                onSearchChange={setSearchTerm}
+                loading={loading}
+              />
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </ResizablePanel>
 
-      {/* Customers Table */}
-      <DataTable 
-        columns={columns} 
-        data={customerStats} 
-        searchPlaceholder="Search customers by name, type..." 
-        onRowClick={(customer) => {
-          window.location.href = `/hierarchy/${customer.id}`;
-        }} 
-      />
+          <ResizableHandle withHandle />
+
+          {/* Right Panel - Detail View */}
+          <ResizablePanel defaultSize={70}>
+            <HierarchyDetailPanel
+              selectedNode={selectedNode}
+              breadcrumbs={breadcrumbs}
+              onNodeAction={handleNodeAction}
+              loading={loading}
+            />
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      </div>
     </div>
   );
 };

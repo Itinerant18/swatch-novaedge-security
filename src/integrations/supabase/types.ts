@@ -327,6 +327,10 @@ export type Database = {
         Args: { user_id: string }
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      is_within_customer_scope: {
+        Args: { entity_id: string; user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       user_role: "super_admin" | "customer_admin" | "branch_manager" | "user"
