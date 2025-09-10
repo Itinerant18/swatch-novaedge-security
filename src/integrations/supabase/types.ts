@@ -202,29 +202,40 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
+          customer_id: string | null
           display_name: string | null
           id: string
-          role: string | null
+          role: Database["public"]["Enums"]["user_role"] | null
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
+          customer_id?: string | null
           display_name?: string | null
           id?: string
-          role?: string | null
+          role?: Database["public"]["Enums"]["user_role"] | null
           updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
+          customer_id?: string | null
           display_name?: string | null
           id?: string
-          role?: string | null
+          role?: Database["public"]["Enums"]["user_role"] | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       system_users: {
         Row: {
@@ -308,10 +319,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_customer: {
+        Args: { user_id: string }
+        Returns: string
+      }
+      get_user_role: {
+        Args: { user_id: string }
+        Returns: Database["public"]["Enums"]["user_role"]
+      }
     }
     Enums: {
-      [_ in never]: never
+      user_role: "super_admin" | "customer_admin" | "branch_manager" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -438,6 +456,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      user_role: ["super_admin", "customer_admin", "branch_manager", "user"],
+    },
   },
 } as const
