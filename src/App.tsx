@@ -114,6 +114,7 @@ const App: React.FC = () => {
     );
   };
 
+  // Skip authentication for now - go directly to banking portal
   if (loading) {
     return (
       <div className="min-h-screen bg-dashboard-bg flex items-center justify-center">
@@ -125,17 +126,8 @@ const App: React.FC = () => {
     );
   }
 
-  if (!session) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <RoleBasedLoginPage />
-        </TooltipProvider>
-      </QueryClientProvider>
-    );
-  }
+  // For now, set default role to banking_admin to bypass authentication
+  const currentUserRole = userRole || 'banking_admin';
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -144,7 +136,7 @@ const App: React.FC = () => {
         <Sonner />
         <BrowserRouter>
           <div className="flex h-screen bg-dashboard-bg">
-            {userRole === 'super_admin' ? (
+            {currentUserRole === 'super_admin' ? (
               <Sidebar
                 activeItem={activeItem}
                 onItemClick={handleItemClick}
@@ -168,7 +160,7 @@ const App: React.FC = () => {
               
               <main className="flex-1 overflow-y-auto p-6">
                 <Routes>
-                  {userRole === 'super_admin' ? (
+                  {currentUserRole === 'super_admin' ? (
                     // Super Admin Routes
                     <>
                       <Route path="/" element={<HomePage />} />
