@@ -16,41 +16,54 @@ import { supabase } from '@/integrations/supabase/client';
 
 const HomePage: React.FC = () => {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchSummary = async () => {
       try {
+        setLoading(true);
+        
         // Fetch devices for dashboard summary
-        const { data: devices } = await supabase
+        const { data: devices, error: devicesError } = await supabase
           .from('devices')
           .select('status');
         
         // Fetch branches count
-        const { data: branches } = await supabase
+        const { data: branches, error: branchesError } = await supabase
           .from('branches')
           .select('id');
           
         // Fetch system users count  
-        const { data: users } = await supabase
+        const { data: users, error: usersError } = await supabase
           .from('system_users')
           .select('id');
 
-        if (devices && branches && users) {
-          const onlineDevices = devices.filter(d => d.status === 'online').length;
-          
-          const dashboardData: DashboardSummary = {
-            totalDevices: devices.length,
-            onlineDevices,
-            offlineDevices: devices.length - onlineDevices,
-            totalBranches: branches.length,
-            totalUsers: users.length,
-            lastUpdated: new Date().toISOString()
-          };
-          
-          setSummary(dashboardData);
-        }
+        // Always show data even if some queries fail
+        const onlineDevices = devices ? devices.filter(d => d.status === 'online').length : 0;
+        
+        const dashboardData: DashboardSummary = {
+          totalDevices: devices?.length || 0,
+          onlineDevices,
+          offlineDevices: (devices?.length || 0) - onlineDevices,
+          totalBranches: branches?.length || 0,
+          totalUsers: users?.length || 0,
+          lastUpdated: new Date().toISOString()
+        };
+        
+        setSummary(dashboardData);
       } catch (error) {
         console.error('Failed to fetch dashboard summary:', error);
+        // Set default data on error
+        setSummary({
+          totalDevices: 0,
+          onlineDevices: 0,
+          offlineDevices: 0,
+          totalBranches: 0,
+          totalUsers: 0,
+          lastUpdated: new Date().toISOString()
+        });
+      } finally {
+        setLoading(false);
       }
     };
     
@@ -61,7 +74,7 @@ const HomePage: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  if (!summary) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
